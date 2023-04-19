@@ -1,0 +1,10 @@
+extract:
+  category_url: 'https://www.woolworths.com.au/api/ui/v2/bootstrap'
+  product_url: 'https://www.woolworths.com.au/apis/ui/browse/category'
+  schema_name: 'woolworths'
+load:
+  load_method: 'overwrite'
+transform: 
+  model_path: 'weatherapi/models/transform'
+meta: 
+  log_table: 'pipeline_logs'
