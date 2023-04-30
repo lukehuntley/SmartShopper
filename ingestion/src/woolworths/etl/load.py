@@ -1,11 +1,6 @@
-# from sqlalchemy import String, DateTime, Boolean, BigInteger, Numeric
-# from sqlalchemy import Table, Column, Integer, String, MetaData
-# from sqlalchemy.dialects import postgresql
-# from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.schema import CreateSchema
 from sqlalchemy import text
 import pandas as pd
-import numpy as np
 import logging 
 
 class Load():
@@ -22,7 +17,8 @@ class Load():
         """
         Creates a database schema to group tables together
         - `engine`: connection engine to database 
-        - `schema_name` : database schema  
+        - `schema_name`: database schema  
+        
         Returns None
         """
 
@@ -31,8 +27,6 @@ class Load():
                 conn.execute(CreateSchema(schema_name))
                 conn.commit()
                 logging.info(f'Schema [{schema_name}] created')            
-            else:
-                logging.info(f'Schema [{schema_name}] already exists')
         
         return None
     
@@ -44,8 +38,11 @@ class Load():
         - `schema_name: database schema
         - `table_name`: target table        
         - `chunksize`: if chunksize greater than 0 is specified, then the rows will be inserted in the specified chunksize. e.g. 1000 rows at a time
+
         Returns None
         """
+
+        logging.info(f'Inserting into table [{table_name}]')
 
         max_length = len(df)
 
@@ -76,6 +73,7 @@ class Load():
         - `schema_name: database schema
         - `table_name`: target table        
         - `chunksize`: if chunksize greater than 0 is specified, then the rows will be inserted in the specified chunksize. e.g. 1000 rows at a time
+
         Returns None
         """
 

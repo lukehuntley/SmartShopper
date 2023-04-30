@@ -1,0 +1,13 @@
+extract:
+  location_search_url1: 'https://www.coles.com.au/api/bff/locations/search/suggestions?limit=6&searchTerm=Belmont'
+  location_search_url2: 'https://www.coles.com.au/api/bff/locations/search?longitude=115.931402&latitude=-31.950061&distance=5000&numberOfLocations=100'
+  store_id: '4824'
+  subscription_key: 'eae83861d1cd4de6bb9cd8a2cd6f041e'
+  category_url: 'https://www.coles.com.au/api/bff/products/categories?storeId=4824'
+  product_url_old: 'https://www.coles.com.au/_next/data/20230414.01_v3.32.0/en/browse/'
+  product_url: 'https://www.coles.com.au/_next/data/20230426.01_v3.33.0/en/browse/'
+  schema_name: 'coles'
+load:
+  load_method: 'overwrite'
+meta: 
+  log_table: 'pipeline_logs'

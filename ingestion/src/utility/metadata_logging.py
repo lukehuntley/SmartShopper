@@ -1,31 +1,54 @@
-import datetime as dt 
+from sqlalchemy.schema import CreateSchema
 from sqlalchemy import Table, Column, Integer, String, MetaData, JSON
 from sqlalchemy import insert, select, func
+import datetime as dt 
+import logging
 
 class MetadataLogging():
 
     def __init__(self, engine):
         self.engine = engine
     
-    def create_target_table_if_not_exists(self, db_table:str)->Table:
+    def _create_schema(self, engine, schema_name:str)->None:
+        """
+        Creates a database schema to group tables together
+        - `engine`: connection engine to database 
+        - `schema_name` : database schema  
+
+        Returns None
+        """
+
+        with engine.connect() as conn:            
+            if not conn.dialect.has_schema(conn, schema_name):
+                conn.execute(CreateSchema(schema_name))
+                conn.commit()
+                logging.info(f'Schema [{schema_name}] created')            
+        
+        return None
+    
+    def _create_logging_table(self, schema_name:str, table_name:str)->Table:
+        
+        self._create_schema(engine=self.engine, schema_name=schema_name)
+        
         meta = MetaData()
         target_table = Table(
-            db_table, meta, 
+            table_name, 
+            meta,
             Column("run_timestamp", String, primary_key=True),
             Column("run_id", Integer, primary_key=True),
             Column("run_status", String, primary_key=True),
             Column("run_config", JSON),
-            Column("run_log", String)
+            Column("run_log", String),
+            schema=schema_name
         )
-        meta.create_all(self.engine) # creates table if it does not exist
+        meta.create_all(self.engine)
         return target_table 
     
-    def get_latest_run_id(self, db_table:str)->int:
-        target_table = self.create_target_table_if_not_exists(db_table=db_table)
+    def get_latest_run_id(self, schema_name:str, table_name:str)->int:
+        target_table = self._create_logging_table(schema_name=schema_name, table_name=table_name)
         statement = (
             select(func.max(target_table.c.run_id))
         )
-        # response = self.engine.execute(statement).first()[0]
 
         with self.engine.connect() as conn:
             response = conn.execute(statement).first()[0]
@@ -40,11 +63,12 @@ class MetadataLogging():
         run_timestamp: dt.datetime,
         run_id: int,
         run_config: dict,
-        db_table: str,
+        schema_name: str,
+        table_name: str,
         run_status: str="started",
         run_log:str="",
     )->bool:
-        target_table = self.create_target_table_if_not_exists(db_table=db_table)
+        target_table = self._create_logging_table(schema_name=schema_name, table_name=table_name)
         insert_statement = insert(target_table).values(
             run_timestamp=run_timestamp,
             run_id=run_id,
@@ -52,7 +76,6 @@ class MetadataLogging():
             run_config=run_config,
             run_log=run_log
         )
-        # self.engine.execute(insert_statement)
 
         with self.engine.connect() as conn:
             conn.execute(insert_statement)
