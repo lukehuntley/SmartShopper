@@ -11,12 +11,11 @@ class PostgresDB():
 
     def create_pg_engine(self):
         """
-        create an engine to either `source` or `target`
+        Create an engine to either `source` or `target`
         """
         # drivername = "postgresql+pg8000", 
         # create connection to database self.
         connection_url = URL.create(
-            # drivername = "postgresql+psycopg2", 
             drivername = "postgresql+pg8000", 
             username = self.db_user,
             password = self.db_password,
@@ -25,6 +24,6 @@ class PostgresDB():
             database = self.db_database_name, 
         )
 
-        # engine = create_engine(connection_url, echo=True)
-        engine = create_engine(connection_url)
+        engine = create_engine(connection_url, echo=False)
+        
         return engine 

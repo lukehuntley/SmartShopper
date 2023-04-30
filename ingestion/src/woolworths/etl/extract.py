@@ -6,7 +6,6 @@ import logging
 import json
 import math
 import logging 
-# pd.options.mode.chained_assignment = None
 
 class Extract():
 
@@ -14,34 +13,33 @@ class Extract():
         self.category_url = category_url  
         self.product_url = product_url      
         
-    def _get_categories(self, url:str):
+    def _get_categories(self, url:str, headers:dict)->pd.DataFrame:
         """
         Get list of product categories      
-        - `url` : the category API URL
-        Returns ?
+        - `url`: the category API URL
+        - `headers`: the request headers
+
+        Returns Dataframe
         """
-        df_category = pd.DataFrame()
-        header = {
-            'content-type': 'application/json',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
-            }
+        
+        category_df = pd.DataFrame()
 
-        logging.info('about to ping api')
-
-        response = requests.request("GET", url=url, headers=header)
+        response = requests.request("GET", url=url, headers=headers)
         
         if response.status_code == 200:            
             json_response = response.json()
-            df_category = pd.json_normalize(json_response['ListTopLevelPiesCategories'],'Categories')
+            category_df = pd.json_normalize(json_response['ListTopLevelPiesCategories'],'Categories')
+        
         else: 
             logging.error(response)
         
-        return df_category
+        return category_df
     
-    def _get_cookie(self, url)->str:
+    def _get_cookie(self, url:str)->str:
         """
         Gets a cookie from the url to authorise POST requests        
-        - `url` : the products API URL        
+        - `url`: the products API URL      
+
         Returns the cookie as string
         """
 
@@ -50,13 +48,13 @@ class Extract():
             context = browser.new_context()
             page = context.new_page()
             page.goto(url)
-            cookie_for_requests = context.cookies()
+            cookies = context.cookies()
 
-            # cookie = ''
+            cookie = ''
 
-            for item in cookie_for_requests:
-                if item['name'] == '_abck':
-                    cookie = item['value']
+            for cookie in cookies:
+                if cookie['name'] == '_abck':
+                    cookie = cookie['value']
                     break
             else:
                 logging.error('Could not get cookie')
@@ -66,24 +64,33 @@ class Extract():
 
         return cookie   
 
-    def _create_header(self, url)->dict:
+    def _create_headers(self, headers_for:str, url:str=None)->dict:
         """
-        Creates header with the cookie added        
-        - `url` : the products API URL
-        Returns of header as a dictionary
+        Creates headers with the cookie added        
+        - `url`: the products API URL
+
+        Returns of headers as a dictionary
         """
 
-        cookie_string = f"_abck={self._get_cookie(url = url)}"
+        if headers_for == 'category':
+            headers = {
+                'content-type': 'application/json',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
+                }
+            
+        elif headers_for == 'product':
+            
+            cookie_string = f"_abck={self._get_cookie(url=url)}"
 
-        header = {
-        'content-type': 'application/json',
-        'cookie': cookie_string,
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
-        }
+            headers = {
+            'content-type': 'application/json',
+            'cookie': cookie_string,
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'
+            }
 
-        return header 
+        return headers 
 
-    def _create_payload(self, category_id, url, location, format_object, page_number:int=1)->dict:
+    def _create_payload(self, category_id:str, url:str, location:str, format_object:str, page_number:int=1)->dict:
         """
         Creates  payload for the POST request
         - `category_id`: the category ID
@@ -91,6 +98,7 @@ class Extract():
         - `location`: the category name
         - `format_object`: the friendly category name
         - `page_number`: the page number of the category
+
         Returns payload as dictionary
         """
         
@@ -113,106 +121,107 @@ class Extract():
 
         return payload  
      
-    def _get_page_count(self, url:str, header:dict, payload:str)->int:
+    def _get_page_count(self, url:str, headers:dict, payload:str)->int:
         """
         Gets the number of pages for a product category        
-        - `url` : the API URL
-        - `header` : the request header
-        - `payload' : the request payload
+        - `url`: the API URL
+        - `headers`: the request headers
+        - `payload': the request payload
+
         Returns the count of of pages as integer
         """  
 
-        response = requests.request("POST", url=url, headers=header, data=payload)
+        response = requests.request("POST", url=url, headers=headers, data=payload)
 
         if(response.status_code == 200):            
             json_response = response.json()            
-            items_in_category = json_response['TotalRecordCount']    
-            pages_in_category = math.ceil(items_in_category / 24)            
+            products_in_category = json_response['TotalRecordCount']    
+            pages_in_category = math.ceil(products_in_category / 24)   
+
         else: 
             logging.error(response)
         
         return pages_in_category
 
-    def _extract_products(self, url:str, header:dict, payload:str)->pd.DataFrame:
+    def _get_products(self, url:str, headers:dict, payload:str)->pd.DataFrame:
         """
         Get list of products from API request        
-        - `url` : the API URL
-        - `header` : the request header
-        - `payload' : the request payload
+        - `url`: the API URL
+        - `headers`: the request headers
+        - `payload': the request payload
+
         Returns a dataframe of products
         """
 
-        response = requests.request("POST", url=url, headers=header, data=payload)
+        products_df = pd.DataFrame()
+
+        response = requests.request("POST", url=url, headers=headers, data=payload)
 
         if response.status_code == 200:            
             json_response = response.json()
-            
-            with open('json_response.json', 'w', encoding='utf-8') as responseFile:
-               responseFile.write(json.dumps(json_response))
-
-            df_products = pd.json_normalize(json_response['Bundles'],'Products')
+            products_df = pd.json_normalize(json_response['Bundles'],'Products')
         
         else: 
             logging.error(response)
 
-        return df_products
+        return products_df
     
     def run(self)->list:
         """
         Run extract
         """
-        logging.info(self.category_url)
 
-        category_df = self._get_categories(url=self.category_url)
+        category_headers = self._create_headers(headers_for='category')
+        category_df = self._get_categories(url=self.category_url, headers=category_headers)
 
         # Prepare variables
         category_count = 0        
-        df_list = []
-
-        # Prepare header
-        header = self._create_header(url=self.product_url)
+        list_of_product_df = []
 
         for index, row in category_df.iterrows():
-            if not (row['UrlFriendlyName'] == 'specials' or row['UrlFriendlyName'] == 'front-of-store'):
-                
-                page_df = pd.DataFrame()
-                category_df = pd.DataFrame()               
-                payload = self._create_payload(category_id=row['NodeId'], url=row['UrlFriendlyName'], location=row['UrlFriendlyName'], format_object=row['Description']) 
+            
+            product_df = pd.DataFrame()
 
-                 # Get pages in category
-                pages_in_category = self._get_page_count(url=self.product_url, header=header, payload=json.dumps(payload))
-
-                category_name = row['UrlFriendlyName'].replace('-',' ').title().replace(' ','')
+            if not (row['UrlFriendlyName'] == 'specials' or row['UrlFriendlyName'] == 'front-of-store' or row['UrlFriendlyName'] == 'mother-s-day'):
+            # if row['UrlFriendlyName'] == 'household':
                 category_count += 1
-                logging.info(f'Reading category [{category_count}]:{category_name}')
+                category_name = row['UrlFriendlyName'].replace('-',' ').title().replace(' ','')
+                
+                logging.info(f'Extracting products for category [{category_count}:{category_name}]')
+
+                # Get pages in category
+                product_headers = self._create_headers(headers_for='product', url=self.product_url)
+                product_payload = self._create_payload(category_id=row['NodeId'], url=row['UrlFriendlyName'], location=row['UrlFriendlyName'], format_object=row['Description']) 
+                pages_in_category = self._get_page_count(url=self.product_url, headers=product_headers, payload=json.dumps(product_payload))
 
                 for page in range(1, pages_in_category + 1):
-                    logging.info(f'Reading page: {page} / {pages_in_category} of category [{category_count}]:{category_name}')
-
-                    # Alter payload with page number
-                    payload.update({'pageNumber': page})
+                    logging.info(f'Extracting page [{page} / {pages_in_category}] of category [{category_count}:{category_name}]')
                     
-                    page_df = self._extract_products(url=self.product_url, header=header, payload=json.dumps(payload))                    
-                    category_df = pd.concat((category_df, page_df), axis = 0)
+                    # Alter payload with page number
+                    product_payload.update({'pageNumber': page})
+                    
+                    page_df = self._get_products(url=self.product_url, headers=product_headers, payload=json.dumps(product_payload))                    
+                    product_df = pd.concat((product_df, page_df), axis = 0)
 
-                # Add category column
-                category_df = category_df.copy()
-                category_df.insert(loc=0, column='Category', value=category_name)
+                 # Add product df to list of dataframes
+                if not product_df.empty:
+                    # Replace nan
+                    product_df = product_df.replace({np.nan: None})                    
+                    
+                    # Truncate column names
+                    new_column_dict = {}
+                    for column in product_df.columns:
+                        new_column_dict[column] = column.replace('.','').replace('_','').replace('Attributes','Attr').replace('Maximum','Max').replace('Minimum','Min').replace('ThirdPartyProductInfoThirdParty','ThirdPartyProduct').replace('Additional','Add').replace('Value','Val').replace('Position','Pos').replace('Option','Opt').replace('Childrens','Child').replace('Size','Sz').replace('Clothing','Cloth').replace('Display','Disp').replace('Colour','Col')
 
-                # Replace nan
-                category_df = category_df.replace({np.nan: None})
+                    # Rename df with new columns
+                    product_df.rename(columns=new_column_dict, inplace=True)
+                    
+                    # Name the df
+                    product_df.attrs['name'] = category_name
+                  
+                    list_of_product_df.append(product_df)
 
-                # Truncate column names
-                new_column_dict = {}
-                for column in category_df.columns:
-                    new_column_dict[column] = column.replace('.','').replace('_','').replace('Attributes','Attr').replace('Maximum','Max').replace('Minimum','Min').replace('ThirdPartyProductInfoThirdParty','ThirdPartyProduct').replace('Additional','Add').replace('Value','Val').replace('Position','Pos').replace('Option','Opt').replace('Childrens','Child').replace('Size','Sz').replace('Clothing','Cloth').replace('Display','Disp').replace('Colour','Col')
-
-                # Rename df with new columns
-                category_df.rename(columns=new_column_dict, inplace=True)
-
-                logging.info(f'category_df length: {len(category_df)}')
-
-                # Add category df to list of dataframes
-                df_list.append(category_df)
-
-        return df_list
+                else:
+                    logging.info(f'{category_name} df is empty')
+                
+        return list_of_product_df
